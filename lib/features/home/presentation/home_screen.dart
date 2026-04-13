@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:granix/core/theme/app_colors.dart';
-import 'package:granix/features/carga/presentation/nova_carga_screen.dart';
+import 'package:granix/features/carga/presentation/cargas_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -14,7 +14,7 @@ class HomeScreen extends StatelessWidget {
         ativo: true,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const NovaCargaScreen()),
+          MaterialPageRoute(builder: (_) => const CargasScreen()),
         ),
       ),
       _ModuloItem(titulo: 'AUDITORIAS',     icone: Icons.fact_check_outlined,              onTap: () {}),

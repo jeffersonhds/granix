@@ -19,7 +19,9 @@ class CargaModel {
   final String transportadora;
   final String aceitoPor;
   final bool insetosVivos;
+  final String qtdInsetosVivos;
   final bool insetosMortos;
+  final String qtdInsetosMortos;
   final bool odorEstranho;
   final bool sementesToxicas;
   final String umidade;
@@ -54,7 +56,9 @@ class CargaModel {
     required this.transportadora,
     required this.aceitoPor,
     required this.insetosVivos,
+    required this.qtdInsetosVivos,
     required this.insetosMortos,
+    required this.qtdInsetosMortos,
     required this.odorEstranho,
     required this.sementesToxicas,
     required this.umidade,
@@ -90,7 +94,9 @@ class CargaModel {
     String? transportadora,
     String? aceitoPor,
     bool? insetosVivos,
+    String? qtdInsetosVivos,
     bool? insetosMortos,
+    String? qtdInsetosMortos,
     bool? odorEstranho,
     bool? sementesToxicas,
     String? umidade,
@@ -125,7 +131,9 @@ class CargaModel {
       transportadora: transportadora ?? this.transportadora,
       aceitoPor: aceitoPor ?? this.aceitoPor,
       insetosVivos: insetosVivos ?? this.insetosVivos,
+      qtdInsetosVivos: qtdInsetosVivos ?? this.qtdInsetosVivos,
       insetosMortos: insetosMortos ?? this.insetosMortos,
+      qtdInsetosMortos: qtdInsetosMortos ?? this.qtdInsetosMortos,
       odorEstranho: odorEstranho ?? this.odorEstranho,
       sementesToxicas: sementesToxicas ?? this.sementesToxicas,
       umidade: umidade ?? this.umidade,
@@ -163,7 +171,9 @@ class CargaModel {
       'transportadora': transportadora,
       'aceitoPor': aceitoPor,
       'insetosVivos': insetosVivos,
+      'qtdInsetosVivos': qtdInsetosVivos,
       'insetosMortos': insetosMortos,
+      'qtdInsetosMortos': qtdInsetosMortos,
       'odorEstranho': odorEstranho,
       'sementesToxicas': sementesToxicas,
       'umidade': umidade,
@@ -201,7 +211,9 @@ class CargaModel {
       transportadora: map['transportadora'] ?? '',
       aceitoPor: map['aceitoPor'] ?? '',
       insetosVivos: map['insetosVivos'] ?? false,
+      qtdInsetosVivos: map['qtdInsetosVivos'] ?? '',
       insetosMortos: map['insetosMortos'] ?? false,
+      qtdInsetosMortos: map['qtdInsetosMortos'] ?? '',
       odorEstranho: map['odorEstranho'] ?? false,
       sementesToxicas: map['sementesToxicas'] ?? false,
       umidade: map['umidade'] ?? '',

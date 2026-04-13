@@ -108,7 +108,9 @@ class CargaDetalheScreen extends StatelessWidget {
           _DetalheGroup(children: [
             _DetalheRow('Aceito Por', carga.aceitoPor),
             _DetalheRow('Insetos Vivos', carga.insetosVivos ? 'Sim' : 'Não'),
+            _DetalheRow('Qtd. Insetos Vivos', carga.qtdInsetosVivos),
             _DetalheRow('Insetos Mortos', carga.insetosMortos ? 'Sim' : 'Não'),
+            _DetalheRow('Qtd. Insetos Mortos', carga.qtdInsetosMortos),
             _DetalheRow('Odor Estranho', carga.odorEstranho ? 'Sim' : 'Não'),
             _DetalheRow(
                 'Sementes Tóxicas', carga.sementesToxicas ? 'Sim' : 'Não'),
