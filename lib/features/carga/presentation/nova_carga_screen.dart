@@ -9,11 +9,13 @@ import 'package:granix/features/carga/presentation/cargas_screen.dart';
 
 const _kBg = Colors.white;
 const _kSurface = Colors.white;
-const _kLine = Color(0xFFBDBDBD);
-const _kLabel = Color(0xFF8B8B8B);
-const _kText = Color(0xFF4A4A4A);
-const _kSectionBar = Color(0xFFADADAD);
+const _kLine = Color(0xFFC0C0C0);
+const _kLabel = Color(0xFF8E8E8E);
+const _kText = Color(0xFF5A5A5A);
+const _kSectionBar = Color(0xFFA9A9A9);
 const _kSectionText = Colors.white;
+const _kAppBar = Color(0xFFB7CA55);
+const _kSaveButton = Color(0xFF95C26C);
 
 class NovaCargaScreen extends StatefulWidget {
   final CargaModel? cargaParaEditar;
@@ -50,10 +52,8 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
   final _transportadoraCtrl = TextEditingController();
   final _aceitoPorCtrl = TextEditingController();
 
-  bool _insetosVivos = false;
-  bool _insetosMortos = false;
-  bool _odorEstranho = false;
-  bool _sementesToxicas = false;
+  final _qtdInsetosVivosCtrl = TextEditingController();
+  final _qtdInsetosMortosCtrl = TextEditingController();
 
   final _umidadeCtrl = TextEditingController();
   final _materiasImpCtrl = TextEditingController();
@@ -71,6 +71,13 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
   String? _veiculoVistoriado = 'SIM';
   String _produtoBase = 'Soja';
   String? _tipoProduto = 'OGM - Intacta Declarado';
+
+  String? _insetosVivosSel = '...';
+  String? _insetosMortosSel = '...';
+  String? _odorEstranhoSel = 'Não';
+  String? _sementesToxicasSel = 'Não';
+
+  bool _loading = true;
 
   bool get _isEdicao =>
       widget.cargaParaEditar != null && widget.indiceEdicao != null;
@@ -97,31 +104,84 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
   List<String> get _tiposProduto =>
       _produtoBase == 'Milho' ? _tiposMilho : _tiposSoja;
 
+  String get _screenTitle {
+    if (_isEdicao) return 'EDITAR CARGA';
+    if (_isDuplicacao) return 'DUPLICAR CARGA';
+    return 'ADICIONAR CARGA';
+  }
+
   @override
   void initState() {
     super.initState();
+
+    _pesoBrutoCtrl.addListener(_calcPesoLiquido);
+    _pesoTaraCtrl.addListener(_calcPesoLiquido);
+
+    _quebradosCtrl.addListener(_calcTotalAvariados);
+    _mofadosCtrl.addListener(_calcTotalAvariados);
+    _queimadosCtrl.addListener(_calcTotalAvariados);
+    _ardidosCtrl.addListener(_calcTotalAvariados);
+    _esverdeadosCtrl.addListener(_calcTotalAvariados);
+    _fermentadosCtrl.addListener(_calcTotalAvariados);
+    _germinadosCtrl.addListener(_calcTotalAvariados);
+    _picadosCtrl.addListener(_calcTotalAvariados);
+
+    _inicializarTela();
+  }
+
+  Future<void> _inicializarTela() async {
+    await CargaMemoryRepository.init();
+
     if (_isEdicao) {
       _preencher(widget.cargaParaEditar!);
     } else if (_isDuplicacao) {
       _preencher(widget.cargaParaDuplicar!);
       _laudoCtrl.text = _gerarLaudo();
       _dataCtrl.text = _dataHoje();
+      await _aplicarSequenciaDoDia();
     } else {
       _laudoCtrl.text = _gerarLaudo();
       _dataCtrl.text = _dataHoje();
-      _preencherZeros();
+      _preencherVazios();
+      await _aplicarSequenciaDoDia();
     }
 
-    _pesoBrutoCtrl.addListener(_calcPesoLiquido);
-    _pesoTaraCtrl.addListener(_calcPesoLiquido);
-    _ardidosCtrl.addListener(_calcTotalAvariados);
-    _queimadosCtrl.addListener(_calcTotalAvariados);
-    _mofadosCtrl.addListener(_calcTotalAvariados);
-    _fermentadosCtrl.addListener(_calcTotalAvariados);
-    _germinadosCtrl.addListener(_calcTotalAvariados);
+    _calcTotalAvariados();
+
+    if (mounted) {
+      setState(() => _loading = false);
+    }
   }
 
-  void _preencherZeros() {
+  Future<void> _aplicarSequenciaDoDia() async {
+    final data = _dataCtrl.text.trim();
+    if (data.isEmpty) return;
+
+    final proximo = _proximoNumeroDoDia(data);
+    final seq = proximo.toString().padLeft(2, '0');
+    _ordemCarregamentoCtrl.text = seq;
+    _notaFiscalCtrl.text = seq;
+  }
+
+  int _proximoNumeroDoDia(String data) {
+    final cargas = CargaMemoryRepository.getAll();
+    int maxNumero = 0;
+
+    for (final c in cargas) {
+      if (c.dataClassificacao.trim() != data) continue;
+
+      final ordem =
+          int.tryParse(c.ordemCarregamento.replaceAll(RegExp(r'\D'), '')) ?? 0;
+      final nf = int.tryParse(c.notaFiscal.replaceAll(RegExp(r'\D'), '')) ?? 0;
+
+      if (ordem > maxNumero) maxNumero = ordem;
+      if (nf > maxNumero) maxNumero = nf;
+    }
+
+    return maxNumero + 1;
+  }
+
+  void _preencherVazios() {
     for (final c in [
       _umidadeCtrl,
       _materiasImpCtrl,
@@ -134,8 +194,16 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
       _fermentadosCtrl,
       _germinadosCtrl,
       _picadosCtrl,
+      _qtdInsetosVivosCtrl,
+      _qtdInsetosMortosCtrl,
+      _valorUnitarioCtrl,
+      _valorTotalCtrl,
+      _pesoBrutoCtrl,
+      _pesoTaraCtrl,
+      _pesoLiquidoCtrl,
+      _aceitoPorCtrl,
     ]) {
-      c.text = '0,00';
+      c.text = '';
     }
   }
 
@@ -150,64 +218,130 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
         '${now.month.toString().padLeft(2, '0')}/${now.year}';
   }
 
-  double _toDouble(String v) =>
-      double.tryParse(v.replaceAll(',', '.').trim()) ?? 0.0;
+  int _digitsToInt(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return 0;
+    return int.tryParse(digits) ?? 0;
+  }
+
+  double _digitsToDecimal(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return 0;
+    return (int.tryParse(digits) ?? 0) / 100;
+  }
+
+  String _formatWeightInt(int value) {
+    final raw = value.toString();
+    final chars = raw.split('').reversed.toList();
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < chars.length; i++) {
+      if (i > 0 && i % 3 == 0) buffer.write('.');
+      buffer.write(chars[i]);
+    }
+
+    return buffer.toString().split('').reversed.join();
+  }
+
+  String _formatDecimalFromDigits(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    final intValue = int.tryParse(digits) ?? 0;
+    final whole = intValue ~/ 100;
+    final decimals = (intValue % 100).toString().padLeft(2, '0');
+    return '$whole.$decimals';
+  }
+
+  String _normalizeDecimalStored(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    return _formatDecimalFromDigits(digits);
+  }
+
+  String _normalizeWeightStored(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    final intValue = int.tryParse(digits) ?? 0;
+    return _formatWeightInt(intValue);
+  }
 
   void _calcPesoLiquido() {
-    final l = _toDouble(_pesoBrutoCtrl.text) - _toDouble(_pesoTaraCtrl.text);
-    _pesoLiquidoCtrl.text = l < 0 ? '0.00' : l.toStringAsFixed(2);
+    final bruto = _digitsToInt(_pesoBrutoCtrl.text);
+    final tara = _digitsToInt(_pesoTaraCtrl.text);
+    final liquido = bruto - tara;
+    _pesoLiquidoCtrl.text = liquido <= 0 ? '' : _formatWeightInt(liquido);
   }
 
   void _calcTotalAvariados() {
-    if (_produtoBase == 'Milho') return;
-    final t = _toDouble(_ardidosCtrl.text) +
-        _toDouble(_queimadosCtrl.text) +
-        _toDouble(_mofadosCtrl.text) +
-        _toDouble(_fermentadosCtrl.text) +
-        _toDouble(_germinadosCtrl.text);
-    _totalAvariadosCtrl.text = t.toStringAsFixed(2);
+    final total = _produtoBase == 'Milho'
+        ? _digitsToDecimal(_fermentadosCtrl.text) + // ARDIDOS no milho
+            _digitsToDecimal(_ardidosCtrl.text) + // MOFADOS no milho
+            _digitsToDecimal(_esverdeadosCtrl.text) + // FERMENTADOS no milho
+            _digitsToDecimal(_germinadosCtrl.text) +
+            _digitsToDecimal(_picadosCtrl.text) + // IMATUROS no milho
+            _digitsToDecimal(_queimadosCtrl.text) // GESSADOS no milho
+        : _digitsToDecimal(_quebradosCtrl.text) + // DANIFICADOS na soja
+            _digitsToDecimal(_queimadosCtrl.text) +
+            _digitsToDecimal(_ardidosCtrl.text) +
+            _digitsToDecimal(_mofadosCtrl.text) +
+            _digitsToDecimal(_fermentadosCtrl.text) +
+            _digitsToDecimal(_germinadosCtrl.text) +
+            _digitsToDecimal(_picadosCtrl.text); // IMATUROS/CHOCHOS na soja
+
+    if (total == 0) {
+      _totalAvariadosCtrl.text = '';
+      return;
+    }
+
+    final digits = (total * 100).round().toString();
+    _totalAvariadosCtrl.text = _formatDecimalFromDigits(digits);
   }
 
   void _preencher(CargaModel c) {
     _laudoCtrl.text = c.laudo;
     _dataCtrl.text = c.dataClassificacao;
-    _placaCtrl.text = c.placa;
-    _pesoBrutoCtrl.text = c.pesoBruto;
-    _pesoTaraCtrl.text = c.pesoTara;
-    _pesoLiquidoCtrl.text = c.pesoLiquido;
+    _placaCtrl.text = _PlacaInputFormatter.formatStatic(c.placa);
+    _pesoBrutoCtrl.text = _normalizeWeightStored(c.pesoBruto);
+    _pesoTaraCtrl.text = _normalizeWeightStored(c.pesoTara);
+    _pesoLiquidoCtrl.text = _normalizeWeightStored(c.pesoLiquido);
     _ordemCarregamentoCtrl.text = c.ordemCarregamento;
     _notaFiscalCtrl.text = c.notaFiscal;
     _cfopCtrl.text = c.cfop;
     _dataEmissaoNfCtrl.text = c.dataEmissaoNf;
-    _valorUnitarioCtrl.text = c.valorUnitario;
-    _valorTotalCtrl.text = c.valorTotal;
+    _valorUnitarioCtrl.text = _normalizeDecimalStored(c.valorUnitario);
+    _valorTotalCtrl.text = _normalizeDecimalStored(c.valorTotal);
     _chaveNfeCtrl.text = c.chaveNfe;
     _transportadoraCtrl.text = c.transportadora;
     _aceitoPorCtrl.text = c.aceitoPor;
-    _umidadeCtrl.text = c.umidade.isEmpty ? '0,00' : c.umidade;
-    _materiasImpCtrl.text = c.materiasImp.isEmpty ? '0,00' : c.materiasImp;
-    _quebradosCtrl.text = c.quebrados.isEmpty ? '0,00' : c.quebrados;
-    _mofadosCtrl.text = c.mofados.isEmpty ? '0,00' : c.mofados;
-    _totalAvariadosCtrl.text =
-        c.totalAvariados.isEmpty ? '0,00' : c.totalAvariados;
-    _queimadosCtrl.text = c.queimados.isEmpty ? '0,00' : c.queimados;
-    _ardidosCtrl.text = c.ardidos.isEmpty ? '0,00' : c.ardidos;
-    _esverdeadosCtrl.text = c.esverdeados.isEmpty ? '0,00' : c.esverdeados;
-    _fermentadosCtrl.text = c.fermentados.isEmpty ? '0,00' : c.fermentados;
-    _germinadosCtrl.text = c.germinados.isEmpty ? '0,00' : c.germinados;
-    _picadosCtrl.text = c.picados.isEmpty ? '0,00' : c.picados;
+
+    _umidadeCtrl.text = _normalizeDecimalStored(c.umidade);
+    _materiasImpCtrl.text = _normalizeDecimalStored(c.materiasImp);
+    _quebradosCtrl.text = _normalizeDecimalStored(c.quebrados);
+    _mofadosCtrl.text = _normalizeDecimalStored(c.mofados);
+    _totalAvariadosCtrl.text = _normalizeDecimalStored(c.totalAvariados);
+    _queimadosCtrl.text = _normalizeDecimalStored(c.queimados);
+    _ardidosCtrl.text = _normalizeDecimalStored(c.ardidos);
+    _esverdeadosCtrl.text = _normalizeDecimalStored(c.esverdeados);
+    _fermentadosCtrl.text = _normalizeDecimalStored(c.fermentados);
+    _germinadosCtrl.text = _normalizeDecimalStored(c.germinados);
+    _picadosCtrl.text = _normalizeDecimalStored(c.picados);
     _observacoesCtrl.text = c.observacoes;
 
-    _insetosVivos = c.insetosVivos;
-    _insetosMortos = c.insetosMortos;
-    _odorEstranho = c.odorEstranho;
-    _sementesToxicas = c.sementesToxicas;
+    _qtdInsetosVivosCtrl.text = c.qtdInsetosVivos;
+    _qtdInsetosMortosCtrl.text = c.qtdInsetosMortos;
+
+    _insetosVivosSel = c.insetosVivos ? 'Sim' : '...';
+    _insetosMortosSel = c.insetosMortos ? 'Sim' : '...';
+    _odorEstranhoSel = c.odorEstranho ? 'Sim' : 'Não';
+    _sementesToxicasSel = c.sementesToxicas ? 'Sim' : 'Não';
 
     final tipo = c.tipoProduto;
     _produtoBase = tipo.toLowerCase().contains('milho') ? 'Milho' : 'Soja';
     _tipoProduto = _tiposProduto.contains(tipo) ? tipo : _tiposProduto.first;
     _veiculoVistoriado =
         c.veiculoVistoriado.isEmpty ? 'SIM' : c.veiculoVistoriado;
+
+    _calcTotalAvariados();
   }
 
   @override
@@ -228,6 +362,8 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
       _chaveNfeCtrl,
       _transportadoraCtrl,
       _aceitoPorCtrl,
+      _qtdInsetosVivosCtrl,
+      _qtdInsetosMortosCtrl,
       _umidadeCtrl,
       _materiasImpCtrl,
       _quebradosCtrl,
@@ -268,10 +404,12 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
       chaveNfe: _chaveNfeCtrl.text.trim(),
       transportadora: _transportadoraCtrl.text.trim(),
       aceitoPor: _aceitoPorCtrl.text.trim(),
-      insetosVivos: _insetosVivos,
-      insetosMortos: _insetosMortos,
-      odorEstranho: _odorEstranho,
-      sementesToxicas: _sementesToxicas,
+      insetosVivos: _insetosVivosSel == 'Sim',
+      qtdInsetosVivos: _qtdInsetosVivosCtrl.text.trim(),
+      insetosMortos: _insetosMortosSel == 'Sim',
+      qtdInsetosMortos: _qtdInsetosMortosCtrl.text.trim(),
+      odorEstranho: _odorEstranhoSel == 'Sim',
+      sementesToxicas: _sementesToxicasSel == 'Sim',
       umidade: _umidadeCtrl.text.trim(),
       materiasImp: _materiasImpCtrl.text.trim(),
       quebrados: _quebradosCtrl.text.trim(),
@@ -286,49 +424,48 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
       observacoes: _observacoesCtrl.text.trim(),
     );
 
-    if (_isEdicao) await CargaMemoryRepository.removeAt(widget.indiceEdicao!);
+    if (_isEdicao) {
+      await CargaMemoryRepository.removeAt(widget.indiceEdicao!);
+    }
+
     await CargaMemoryRepository.add(carga);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEdicao
-                ? 'Carga atualizada.'
-                : _isDuplicacao
-                    ? 'Carga duplicada.'
-                    : 'Carga salva.',
-          ),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isEdicao
+              ? 'Carga atualizada.'
+              : _isDuplicacao
+                  ? 'Carga duplicada.'
+                  : 'Carga salva.',
         ),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const CargasScreen()),
-      );
-    }
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const CargasScreen()),
+    );
   }
 
-  String get _lC1 => _produtoBase == 'Milho' ? 'Danificados' : 'Quebrados';
-  String get _lC2 => _produtoBase == 'Milho' ? 'Quebrados' : 'Mofados';
+  String get _lC1 => _produtoBase == 'Milho' ? 'DANIFICADOS' : 'DANIFICADOS';
+  String get _lC2 => _produtoBase == 'Milho' ? 'QUEBRADOS' : 'MOFADOS';
   String get _lC3 =>
-      _produtoBase == 'Milho' ? 'Avariados' : 'Total de Avariados';
-  String get _lC4 => _produtoBase == 'Milho' ? 'Gessado' : 'Queimados';
-  String get _lC5 => _produtoBase == 'Milho' ? 'Mofados' : 'Ardidos';
-  String get _lC6 => _produtoBase == 'Milho' ? 'Fermentados' : 'Esverdeados';
-  String get _lC7 => _produtoBase == 'Milho' ? 'Ardidos' : 'Fermentados';
-  String get _lC8 => 'Germinados';
-  String get _lC9 => _produtoBase == 'Milho' ? 'Carunchados' : 'Picados';
+      _produtoBase == 'Milho' ? 'AVARIADOS' : 'TOTAL DE AVARIADOS';
+  String get _lC4 => _produtoBase == 'Milho' ? 'GESSADOS' : 'QUEIMADOS';
+  String get _lC5 => _produtoBase == 'Milho' ? 'MOFADOS' : 'ARDIDOS';
+  String get _lC6 => _produtoBase == 'Milho' ? 'FERMENTADOS' : 'ESVERDEADOS';
+  String get _lC7 => _produtoBase == 'Milho' ? 'ARDIDOS' : 'FERMENTADOS';
+  String get _lC8 => 'GERMINADOS';
+  String get _lC9 =>
+      _produtoBase == 'Milho' ? 'IMATUROS' : 'IMATUROS/CHOCHOS';
 
   @override
   Widget build(BuildContext context) {
-    final titulo = _isEdicao
-        ? 'Editar Carga'
-        : _isDuplicacao
-            ? 'Duplicar Carga'
-            : 'Nova Carga';
-
     final textoBotao = _isEdicao
         ? 'ATUALIZAR'
         : _isDuplicacao
@@ -338,332 +475,346 @@ class _NovaCargaScreenState extends State<NovaCargaScreen> {
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFB7C853),
+        backgroundColor: _kAppBar,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          titulo,
+          _screenTitle,
           style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
             color: Colors.white,
             letterSpacing: 0.2,
           ),
         ),
         centerTitle: true,
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _FlatField(
-                label: 'Laudo',
-                ctrl: _laudoCtrl,
-                readOnly: true,
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: 'Data de Class.',
-                  ctrl: _dataCtrl,
-                  readOnly: true,
-                ),
-                _FlatField(
-                  label: 'Placa',
-                  ctrl: _placaCtrl,
-                  required: true,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-                    LengthLimitingTextInputFormatter(8),
-                    _UpperCase(),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FlatField(
+                      label: 'Laudo',
+                      ctrl: _laudoCtrl,
+                      readOnly: true,
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF7C7C7C),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'Data de Class.',
+                        ctrl: _dataCtrl,
+                        readOnly: true,
+                      ),
+                      _FlatField(
+                        label: 'Placa',
+                        ctrl: _placaCtrl,
+                        required: true,
+                        keyboardType: TextInputType.text,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(8),
+                          _PlacaInputFormatter(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'Peso Bruto',
+                        ctrl: _pesoBrutoCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_WeightInputFormatter()],
+                      ),
+                      _FlatField(
+                        label: 'Peso Tara',
+                        ctrl: _pesoTaraCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_WeightInputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'Peso',
+                        ctrl: _pesoLiquidoCtrl,
+                        readOnly: true,
+                      ),
+                      _FlatField(
+                        label: 'Ordem Carregamento',
+                        ctrl: _ordemCarregamentoCtrl,
+                        readOnly: true,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Veículo Vistoriado?',
+                        value: _veiculoVistoriado,
+                        items: const ['SIM', 'NÃO'],
+                        onChanged: (v) => setState(() => _veiculoVistoriado = v),
+                      ),
+                      _FlatField(
+                        label: 'Nota Fiscal',
+                        ctrl: _notaFiscalCtrl,
+                        readOnly: true,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatDropdownField(
+                      label: 'Produto',
+                      value: _produtoBase,
+                      items: const ['Soja', 'Milho'],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _produtoBase = v;
+                          _tipoProduto = _tiposProduto.first;
+                          _calcTotalAvariados();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatDropdownField(
+                      label: 'Tipo do Produto',
+                      value: _tipoProduto,
+                      items: _tiposProduto,
+                      onChanged: (v) => setState(() => _tipoProduto = v),
+                    ),
+                    const SizedBox(height: 10),
+                    const _SectionBar(title: 'NOTAS'),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'CFOP',
+                        ctrl: _cfopCtrl,
+                      ),
+                      _FlatField(
+                        label: 'Data de Emissão da N.F.',
+                        ctrl: _dataEmissaoNfCtrl,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: 'Valor Unitário',
+                        ctrl: _valorUnitarioCtrl,
+                        prefixText: 'R\$ ',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: 'Valor Total',
+                        ctrl: _valorTotalCtrl,
+                        prefixText: 'R\$ ',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatBarcodeField(
+                      label: 'Chave NF-e Produtor',
+                      ctrl: _chaveNfeCtrl,
+                    ),
+                    const SizedBox(height: 10),
+                    const _SectionBar(title: 'TRANSPORTE'),
+                    const SizedBox(height: 7),
+                    _FlatField(
+                      label: 'Transportadora',
+                      ctrl: _transportadoraCtrl,
+                    ),
+                    const SizedBox(height: 10),
+                    const _SectionBar(title: 'CLASSIFICAÇÃO'),
+                    const SizedBox(height: 7),
+                    _FlatField(
+                      label: 'Aceito Por: (Somente fora do Padrão)',
+                      ctrl: _aceitoPorCtrl,
+                      readOnly: false,
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Insetos Vivos?',
+                        value: _insetosVivosSel,
+                        items: const ['...', 'Sim', 'Não'],
+                        onChanged: (v) => setState(() => _insetosVivosSel = v),
+                      ),
+                      _FlatField(
+                        label: 'Qtd. Insetos Vivos',
+                        ctrl: _qtdInsetosVivosCtrl,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Insetos Mortos?',
+                        value: _insetosMortosSel,
+                        items: const ['...', 'Sim', 'Não'],
+                        onChanged: (v) => setState(() => _insetosMortosSel = v),
+                      ),
+                      _FlatField(
+                        label: 'Qtd. Insetos Mortos',
+                        ctrl: _qtdInsetosMortosCtrl,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Odor Estranho?',
+                        value: _odorEstranhoSel,
+                        items: const ['Não', 'Sim'],
+                        onChanged: (v) => setState(() => _odorEstranhoSel = v),
+                      ),
+                      _FlatDropdownField(
+                        label: 'Sementes Tóxicas?',
+                        value: _sementesToxicasSel,
+                        items: const ['Não', 'Sim'],
+                        onChanged: (v) =>
+                            setState(() => _sementesToxicasSel = v),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: 'UMIDADE',
+                        ctrl: _umidadeCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: 'MATÉRIAS E. e IMP',
+                        ctrl: _materiasImpCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC1,
+                        ctrl: _quebradosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC2,
+                        ctrl: _mofadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC3,
+                        ctrl: _totalAvariadosCtrl,
+                        readOnly: true,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC4,
+                        ctrl: _queimadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC5,
+                        ctrl: _ardidosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC6,
+                        ctrl: _esverdeadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC7,
+                        ctrl: _fermentadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC8,
+                        ctrl: _germinadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatValueField(
+                      label: _lC9,
+                      ctrl: _picadosCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [_Decimal2InputFormatter()],
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatField(
+                      label: 'Observações',
+                      ctrl: _observacoesCtrl,
+                      maxLines: 2,
+                      maxLength: 100,
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: _salvar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kSaveButton,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                        child: Text(
+                          textoBotao,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 2.4,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: 'Peso Bruto',
-                  ctrl: _pesoBrutoCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                _FlatField(
-                  label: 'Peso Tara',
-                  ctrl: _pesoTaraCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: 'Peso',
-                  ctrl: _pesoLiquidoCtrl,
-                  readOnly: true,
-                ),
-                _FlatField(
-                  label: 'Ordem Carregamento',
-                  ctrl: _ordemCarregamentoCtrl,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _FlatChoiceField(
-                label: 'Veículo Vistoriado?',
-                child: _SimpleDropdown(
-                  value: _veiculoVistoriado,
-                  items: const ['SIM', 'NÃO'],
-                  onChanged: (v) => setState(() => _veiculoVistoriado = v),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _FlatChoiceField(
-                label: 'Produto',
-                child: _SimpleDropdown(
-                  value: _produtoBase,
-                  items: const ['Soja', 'Milho'],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() {
-                      _produtoBase = v;
-                      _tipoProduto = _tiposProduto.first;
-                      if (_produtoBase == 'Milho') {
-                        _totalAvariadosCtrl.text = '0,00';
-                      } else {
-                        _calcTotalAvariados();
-                      }
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              _FlatChoiceField(
-                label: 'Tipo do Produto',
-                child: _SimpleDropdown(
-                  value: _tipoProduto,
-                  items: _tiposProduto,
-                  onChanged: (v) => setState(() => _tipoProduto = v),
-                ),
-              ),
-
-              const SizedBox(height: 18),
-              const _SectionBar(title: 'NOTAS'),
-              const SizedBox(height: 12),
-
-              _FlatField(
-                label: 'Nota Fiscal',
-                ctrl: _notaFiscalCtrl,
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: 'CFOP',
-                  ctrl: _cfopCtrl,
-                ),
-                _FlatField(
-                  label: 'Data de Emissão da N.F.',
-                  ctrl: _dataEmissaoNfCtrl,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: 'Valor Unitário',
-                  ctrl: _valorUnitarioCtrl,
-                  prefixText: 'R\$ ',
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                _FlatField(
-                  label: 'Valor Total',
-                  ctrl: _valorTotalCtrl,
-                  prefixText: 'R\$ ',
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _BarcodeField(
-                label: 'Chave NF-e Produtor',
-                ctrl: _chaveNfeCtrl,
-                hint: '0/44',
-              ),
-
-              const SizedBox(height: 18),
-              const _SectionBar(title: 'TRANSPORTE'),
-              const SizedBox(height: 12),
-
-              _FlatField(
-                label: 'Transportadora',
-                ctrl: _transportadoraCtrl,
-              ),
-
-              const SizedBox(height: 18),
-              const _SectionBar(title: 'CLASSIFICAÇÃO'),
-              const SizedBox(height: 12),
-
-              _FlatField(
-                label: 'Aceito Por',
-                ctrl: _aceitoPorCtrl,
-              ),
-              const SizedBox(height: 10),
-
-              _BoolChoiceRow(
-                label: 'Insetos Vivos?',
-                value: _insetosVivos,
-                onChanged: (v) => setState(() => _insetosVivos = v),
-              ),
-              const SizedBox(height: 10),
-              _BoolChoiceRow(
-                label: 'Insetos Mortos?',
-                value: _insetosMortos,
-                onChanged: (v) => setState(() => _insetosMortos = v),
-              ),
-              const SizedBox(height: 10),
-              _BoolChoiceRow(
-                label: 'Odor Estranho?',
-                value: _odorEstranho,
-                onChanged: (v) => setState(() => _odorEstranho = v),
-              ),
-              const SizedBox(height: 10),
-              _BoolChoiceRow(
-                label: 'Sementes Tóxicas?',
-                value: _sementesToxicas,
-                onChanged: (v) => setState(() => _sementesToxicas = v),
-              ),
-
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: 'Umidade',
-                  ctrl: _umidadeCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                _FlatField(
-                  label: 'Matérias E. e Imp.',
-                  ctrl: _materiasImpCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: _lC1,
-                  ctrl: _quebradosCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                _FlatField(
-                  label: _lC2,
-                  ctrl: _mofadosCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: _lC3,
-                  ctrl: _totalAvariadosCtrl,
-                  readOnly: _produtoBase == 'Soja',
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                _FlatField(
-                  label: _lC4,
-                  ctrl: _queimadosCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: _lC5,
-                  ctrl: _ardidosCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                _FlatField(
-                  label: _lC6,
-                  ctrl: _esverdeadosCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _row(
-                _FlatField(
-                  label: _lC7,
-                  ctrl: _fermentadosCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                _FlatField(
-                  label: _lC8,
-                  ctrl: _germinadosCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _FlatField(
-                label: _lC9,
-                ctrl: _picadosCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-              ),
-              const SizedBox(height: 12),
-              _FlatField(
-                label: 'Observações',
-                ctrl: _observacoesCtrl,
-                maxLines: 3,
-                maxLength: 100,
-              ),
-
-              const SizedBox(height: 24),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _salvar,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB7C853),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  child: Text(
-                    textoBotao,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
-  Widget _row(Widget l, Widget r) => Row(
+  Widget _row(Widget left, Widget right) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: l),
-          const SizedBox(width: 18),
-          Expanded(child: r),
+          Expanded(child: left),
+          const SizedBox(width: 12),
+          Expanded(child: right),
         ],
       );
 }
@@ -676,16 +827,16 @@ class _SectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 34,
+      height: 32,
       alignment: Alignment.center,
       color: _kSectionBar,
       child: Text(
         title,
         style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w400,
           color: _kSectionText,
-          letterSpacing: 0.5,
+          letterSpacing: 0.2,
         ),
       ),
     );
@@ -701,8 +852,9 @@ class _FlatField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final int maxLines;
   final int? maxLength;
-  final String? hint;
+  final String? hintText;
   final String? prefixText;
+  final TextStyle? textStyle;
 
   const _FlatField({
     required this.label,
@@ -713,8 +865,9 @@ class _FlatField extends StatelessWidget {
     this.inputFormatters,
     this.maxLines = 1,
     this.maxLength,
-    this.hint,
+    this.hintText,
     this.prefixText,
+    this.textStyle,
   });
 
   @override
@@ -729,28 +882,29 @@ class _FlatField extends StatelessWidget {
       validator: required
           ? (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null
           : null,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: readOnly ? _kLabel : _kText,
-      ),
+      style: textStyle ??
+          TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: readOnly ? _kLabel : _kText,
+          ),
       cursorColor: AppColors.primary,
       decoration: InputDecoration(
         labelText: label,
-        hintText: hint,
+        hintText: hintText,
         prefixText: prefixText,
         counterText: '',
         isDense: true,
         filled: true,
         fillColor: _kSurface,
-        contentPadding: const EdgeInsets.only(top: 12, bottom: 8),
+        contentPadding: const EdgeInsets.only(top: 8, bottom: 6),
         labelStyle: const TextStyle(
-          fontSize: 12,
+          fontSize: 12.8,
           fontWeight: FontWeight.w400,
           color: _kLabel,
         ),
         floatingLabelStyle: const TextStyle(
-          fontSize: 12,
+          fontSize: 12.8,
           fontWeight: FontWeight.w400,
           color: _kLabel,
         ),
@@ -758,65 +912,86 @@ class _FlatField extends StatelessWidget {
           borderSide: BorderSide(color: _kLine, width: 1.0),
         ),
         focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.primary, width: 1.2),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.1),
         ),
         errorBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: Colors.red, width: 1.0),
         ),
         focusedErrorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.red, width: 1.2),
+          borderSide: BorderSide(color: Colors.red, width: 1.1),
         ),
       ),
     );
   }
 }
 
-class _FlatChoiceField extends StatelessWidget {
+class _FlatValueField extends StatelessWidget {
   final String label;
-  final Widget child;
+  final TextEditingController ctrl;
+  final bool readOnly;
+  final TextInputType? keyboardType;
+  final String? prefixText;
+  final List<TextInputFormatter>? inputFormatters;
 
-  const _FlatChoiceField({
+  const _FlatValueField({
     required this.label,
-    required this.child,
+    required this.ctrl,
+    this.readOnly = false,
+    this.keyboardType,
+    this.prefixText,
+    this.inputFormatters,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InputDecorator(
-      decoration: const InputDecoration(
+    return TextFormField(
+      controller: ctrl,
+      readOnly: readOnly,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      style: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w400,
+        color: readOnly ? _kLabel : _kText,
+      ),
+      cursorColor: AppColors.primary,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: '0.00',
+        prefixText: prefixText,
+        isDense: true,
         filled: true,
         fillColor: _kSurface,
-        isDense: true,
-        contentPadding: EdgeInsets.only(top: 12, bottom: 8),
-        enabledBorder: UnderlineInputBorder(
+        contentPadding: const EdgeInsets.only(top: 8, bottom: 6),
+        labelStyle: const TextStyle(
+          fontSize: 11.8,
+          fontWeight: FontWeight.w400,
+          color: _kLabel,
+        ),
+        floatingLabelStyle: const TextStyle(
+          fontSize: 11.8,
+          fontWeight: FontWeight.w400,
+          color: _kLabel,
+        ),
+        enabledBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: _kLine, width: 1.0),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: _kLabel,
-            ),
-          ),
-          const SizedBox(height: 4),
-          child,
-        ],
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.primary, width: 1.1),
+        ),
       ),
     );
   }
 }
 
-class _SimpleDropdown extends StatelessWidget {
+class _FlatDropdownField extends StatelessWidget {
+  final String label;
   final String? value;
   final List<String> items;
   final void Function(String?)? onChanged;
 
-  const _SimpleDropdown({
+  const _FlatDropdownField({
+    required this.label,
     required this.value,
     required this.items,
     required this.onChanged,
@@ -824,55 +999,12 @@ class _SimpleDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButton<String>(
-      value: value,
-      isExpanded: true,
-      underline: const SizedBox.shrink(),
-      icon: const Icon(Icons.arrow_drop_down, color: _kLabel, size: 22),
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: _kText,
-      ),
-      items: items
-          .map(
-            (e) => DropdownMenuItem<String>(
-              value: e,
-              child: Text(
-                e,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                  color: _kText,
-                ),
-              ),
-            ),
-          )
-          .toList(),
-      onChanged: onChanged,
-    );
-  }
-}
-
-class _BoolChoiceRow extends StatelessWidget {
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _BoolChoiceRow({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     return InputDecorator(
       decoration: const InputDecoration(
+        isDense: true,
         filled: true,
         fillColor: _kSurface,
-        isDense: true,
-        contentPadding: EdgeInsets.only(top: 10, bottom: 6),
+        contentPadding: EdgeInsets.only(top: 8, bottom: 6),
         enabledBorder: UnderlineInputBorder(
           borderSide: BorderSide(color: _kLine, width: 1.0),
         ),
@@ -883,26 +1015,38 @@ class _BoolChoiceRow extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 12.8,
               fontWeight: FontWeight.w400,
               color: _kLabel,
             ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              _ChoiceChipMini(
-                text: 'SIM',
-                selected: value,
-                onTap: () => onChanged(true),
-              ),
-              const SizedBox(width: 8),
-              _ChoiceChipMini(
-                text: 'NÃO',
-                selected: !value,
-                onTap: () => onChanged(false),
-              ),
-            ],
+          const SizedBox(height: 2),
+          DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            underline: const SizedBox.shrink(),
+            icon: const Icon(Icons.arrow_drop_down, color: _kLabel, size: 22),
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w400,
+              color: _kText,
+            ),
+            items: items
+                .map(
+                  (e) => DropdownMenuItem<String>(
+                    value: e,
+                    child: Text(
+                      e,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w400,
+                        color: _kText,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: onChanged,
           ),
         ],
       ),
@@ -910,64 +1054,23 @@ class _BoolChoiceRow extends StatelessWidget {
   }
 }
 
-class _ChoiceChipMini extends StatelessWidget {
-  final String text;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ChoiceChipMini({
-    required this.text,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(3),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFFE9EDCF) : Colors.transparent,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: selected ? AppColors.primary : const Color(0xFFD0D0D0),
-            width: 1,
-          ),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: selected ? AppColors.primary : _kLabel,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BarcodeField extends StatelessWidget {
+class _FlatBarcodeField extends StatelessWidget {
   final String label;
   final TextEditingController ctrl;
-  final String hint;
 
-  const _BarcodeField({
+  const _FlatBarcodeField({
     required this.label,
     required this.ctrl,
-    required this.hint,
   });
 
   @override
   Widget build(BuildContext context) {
     return InputDecorator(
       decoration: const InputDecoration(
+        isDense: true,
         filled: true,
         fillColor: _kSurface,
-        isDense: true,
-        contentPadding: EdgeInsets.only(top: 12, bottom: 8),
+        contentPadding: EdgeInsets.only(top: 8, bottom: 2),
         enabledBorder: UnderlineInputBorder(
           borderSide: BorderSide(color: _kLine, width: 1.0),
         ),
@@ -981,45 +1084,52 @@ class _BarcodeField extends StatelessWidget {
               keyboardType: TextInputType.number,
               maxLength: 44,
               style: const TextStyle(
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: FontWeight.w400,
                 color: _kText,
               ),
-              decoration: InputDecoration(
-                labelText: label,
-                hintText: hint,
+              decoration: const InputDecoration(
+                labelText: 'Chave NF-e Produtor',
                 counterText: '',
                 isDense: true,
                 filled: true,
                 fillColor: _kSurface,
-                contentPadding: const EdgeInsets.only(top: 0, bottom: 0),
-                labelStyle: const TextStyle(
-                  fontSize: 12,
+                contentPadding: EdgeInsets.zero,
+                labelStyle: TextStyle(
+                  fontSize: 12.8,
                   fontWeight: FontWeight.w400,
                   color: _kLabel,
                 ),
-                floatingLabelStyle: const TextStyle(
-                  fontSize: 12,
+                floatingLabelStyle: TextStyle(
+                  fontSize: 12.8,
                   fontWeight: FontWeight.w400,
                   color: _kLabel,
                 ),
-                enabledBorder: const UnderlineInputBorder(
+                enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.transparent),
                 ),
-                focusedBorder: const UnderlineInputBorder(
+                focusedBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.transparent),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          const Padding(
-            padding: EdgeInsets.only(bottom: 6),
-            child: Icon(
-              Icons.qr_code_2,
-              color: _kText,
-              size: 34,
-            ),
+          const SizedBox(width: 6),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: const [
+              Icon(Icons.reorder, size: 18, color: _kText),
+              Icon(Icons.reorder, size: 18, color: _kText),
+              SizedBox(height: 4),
+              Text(
+                '0/44',
+                style: TextStyle(
+                  fontSize: 10.8,
+                  color: _kText,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1027,11 +1137,86 @@ class _BarcodeField extends StatelessWidget {
   }
 }
 
-class _UpperCase extends TextInputFormatter {
+class _WeightInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-    TextEditingValue o,
-    TextEditingValue n,
-  ) =>
-      n.copyWith(text: n.text.toUpperCase());
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final intValue = int.tryParse(digits) ?? 0;
+    final formatted = _formatWeight(intValue);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  static String _formatWeight(int value) {
+    final raw = value.toString();
+    final chars = raw.split('').reversed.toList();
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < chars.length; i++) {
+      if (i > 0 && i % 3 == 0) buffer.write('.');
+      buffer.write(chars[i]);
+    }
+
+    return buffer.toString().split('').reversed.join();
+  }
+}
+
+class _Decimal2InputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final intValue = int.tryParse(digits) ?? 0;
+    final whole = intValue ~/ 100;
+    final decimals = (intValue % 100).toString().padLeft(2, '0');
+    final formatted = '$whole.$decimals';
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _PlacaInputFormatter extends TextInputFormatter {
+  static String formatStatic(String input) {
+    final clean = input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+    if (clean.isEmpty) return '';
+    if (clean.length <= 3) return clean;
+    return '${clean.substring(0, 3)}-${clean.substring(3)}';
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formatted = formatStatic(newValue.text);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
 }
