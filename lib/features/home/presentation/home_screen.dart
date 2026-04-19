@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:granix/core/theme/app_colors.dart';
-import 'package:granix/features/carga/presentation/cargas_screen.dart';
+import 'package:granix/features/loads/presentation/pages/cargas_screen.dart';
+import 'package:granix/features/settings/presentation/pages/configuracoes_screen.dart';
+import 'package:granix/features/expenses/presentation/pages/solicitacao_despesas_screen.dart';
+import 'package:granix/features/materials/presentation/pages/materiais_screen.dart';
+import 'package:granix/features/support/presentation/pages/suporte_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -17,14 +21,66 @@ class HomeScreen extends StatelessWidget {
           MaterialPageRoute(builder: (_) => const CargasScreen()),
         ),
       ),
-      _ModuloItem(titulo: 'AUDITORIAS',     icone: Icons.fact_check_outlined,              onTap: () {}),
-      _ModuloItem(titulo: 'DISTRIB. DE OS', icone: Icons.assignment_outlined,               onTap: () {}),
-      _ModuloItem(titulo: 'C. OPERACIONAL', icone: Icons.swap_vert,                         onTap: () {}),
-      _ModuloItem(titulo: 'S. DESPESAS',    icone: Icons.receipt_long_outlined, ativo: true, onTap: () {}),
-      _ModuloItem(titulo: 'MATERIAIS',      icone: Icons.inventory_2_outlined,  ativo: true, onTap: () {}),
-      _ModuloItem(titulo: 'RELATÓRIOS',     icone: Icons.bar_chart_outlined,                onTap: () {}),
-      _ModuloItem(titulo: 'CONFIGURAÇÕES',  icone: Icons.settings_outlined,     ativo: true, onTap: () {}),
-      _ModuloItem(titulo: 'SUPORTE',        icone: Icons.help_outline_rounded,  ativo: true, onTap: () {}),
+      _ModuloItem(
+        titulo: 'AUDITORIAS',
+        icone: Icons.fact_check_outlined,
+        onTap: () {},
+      ),
+      _ModuloItem(
+        titulo: 'DISTRIB. DE OS',
+        icone: Icons.assignment_outlined,
+        onTap: () {},
+      ),
+      _ModuloItem(
+        titulo: 'C. OPERACIONAL',
+        icone: Icons.swap_vert,
+        onTap: () {},
+      ),
+      _ModuloItem(
+        titulo: 'S. DESPESAS',
+        icone: Icons.receipt_long_outlined,
+        ativo: true,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const SolicitacaoDespesasScreen(),
+          ),
+        ),
+      ),
+      _ModuloItem(
+        titulo: 'MATERIAIS',
+        icone: Icons.inventory_2_outlined,
+        ativo: true,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MateriaisScreen()),
+        ),
+      ),
+      _ModuloItem(
+        titulo: 'RELATÓRIOS',
+        icone: Icons.bar_chart_outlined,
+        onTap: () {},
+      ),
+      _ModuloItem(
+        titulo: 'CONFIGURAÇÕES',
+        icone: Icons.settings_outlined,
+        ativo: true,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ConfiguracoesScreen(),
+          ),
+        ),
+      ),
+      _ModuloItem(
+        titulo: 'SUPORTE',
+        icone: Icons.help_outline_rounded,
+        ativo: true,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuporteScreen()),
+        ),
+      ),
     ];
 
     return Scaffold(
@@ -48,23 +104,19 @@ class HomeScreen extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.nightlight_round, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.nightlight_round,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: () {},
           ),
         ],
       ),
       body: Column(
         children: [
-
-          // ── HEADER CURVO + AVATAR ─────────────────────────────────────────
-          // Curva verde 140px — avatar 100px sobrepondo a base da curva
           const _HomeHeader(),
-
-          // Espaço para o avatar que sobrepõe a curva (bottom: -28 → 28px fora)
-          // No Graint o avatar fica quase todo dentro da área verde
           const SizedBox(height: 60),
-
-          // ── NOME — bold verde escuro, 16px, espaçado ─────────────────────
           const Text(
             'JEFFERSON HENRIQUE',
             style: TextStyle(
@@ -74,10 +126,7 @@ class HomeScreen extends StatelessWidget {
               letterSpacing: 1.8,
             ),
           ),
-
           const SizedBox(height: 4),
-
-          // ── SUBTÍTULO — 11px cinza espaçado ──────────────────────────────
           const Text(
             'SAPEZAL / MATO GROSSO - MT',
             style: TextStyle(
@@ -87,33 +136,18 @@ class HomeScreen extends StatelessWidget {
               letterSpacing: 1.3,
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // ── GRID 3x3 — todos os 9 cards cabem na tela sem scroll ─────────
-          //
-          // Graint medido pixel a pixel:
-          //   childAspectRatio : ~1.05  (quase quadrado, levemente largo)
-          //   gaps             : ~8px   (bem menores que os 14px anteriores)
-          //   padding lateral  : ~8px
-          //   ícone            : ~26px
-          //   label            : ~10px
-          //
-          // A chave para os 9 cards caberem: ratio ~1.05 + gaps 8px + menos
-          // espaço no header. Com 0.82 os cards ficavam 28% mais altos → extrapolavam.
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
               child: GridView.builder(
                 itemCount: modulos.length,
                 padding: EdgeInsets.zero,
-                // NeverScrollable: no Graint o grid não rola — cabe na tela inteira
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   mainAxisSpacing: 25,
                   crossAxisSpacing: 25,
-                  // 1.05 = levemente mais largo que alto — idêntico ao Graint
                   childAspectRatio: 1.33,
                 ),
                 itemBuilder: (ctx, i) => _ModuloCard(item: modulos[i]),
@@ -126,9 +160,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Header curvo — faixa verde 140px com avatar 100px sobrepondo a base
-// ─────────────────────────────────────────────────────────────────────────────
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader();
 
@@ -138,7 +169,6 @@ class _HomeHeader extends StatelessWidget {
       clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
       children: [
-        // Faixa verde com curva côncava suave na base — igual ao Graint
         ClipPath(
           clipper: _WaveClipper(),
           child: Container(
@@ -146,9 +176,6 @@ class _HomeHeader extends StatelessWidget {
             color: AppColors.primary,
           ),
         ),
-
-        // Avatar branco circular, 100px
-        // bottom: -50 → metade do avatar (50px) fica abaixo da curva
         Positioned(
           bottom: -50,
           child: Container(
@@ -180,7 +207,6 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
-// Curva côncava suave — igual ao Graint
 class _WaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
@@ -198,15 +224,12 @@ class _WaveClipper extends CustomClipper<Path> {
   }
 
   @override
-  bool shouldReclip(_WaveClipper old) => false;
+  bool shouldReclip(_WaveClipper oldClipper) => false;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Card de módulo
-// cantos 10px | sombra cinza suave | ícone 26px | label 10px
-// ─────────────────────────────────────────────────────────────────────────────
 class _ModuloCard extends StatelessWidget {
   final _ModuloItem item;
+
   const _ModuloCard({required this.item});
 
   @override

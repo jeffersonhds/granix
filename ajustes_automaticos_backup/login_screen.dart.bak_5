@@ -1,0 +1,308 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:granix/features/home/presentation/home_screen.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _cpfController = TextEditingController();
+  final _senhaController = TextEditingController();
+  final _cpfFocus = FocusNode();
+  final _senhaFocus = FocusNode();
+  bool _loading = false;
+
+  static const _gradTop = Color(0xFFBACC38);
+  static const _gradBottom = Color(0xFF4B6B20);
+
+  @override
+  void dispose() {
+    _cpfController.dispose();
+    _senhaController.dispose();
+    _cpfFocus.dispose();
+    _senhaFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _entrar() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _loading = true);
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    setState(() => _loading = false);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [_gradTop, _gradBottom],
+            ),
+          ),
+          child: SafeArea(
+            child: Stack(
+              children: [
+                // Ícones topo direito
+                Positioned(
+                  top: 6,
+                  right: 10,
+                  child: Row(
+                    children: [
+                      _TopIcon(
+                          icon: Icons.warning_amber_rounded, onTap: () {}),
+                      const SizedBox(width: 2),
+                      _TopIcon(icon: Icons.refresh_rounded, onTap: () {}),
+                    ],
+                  ),
+                ),
+
+                SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 70),
+
+                      // Logo SEM círculo — solto, como no Graint
+                      Icon(
+                        Icons.grain,
+                        size: 72,
+                        color: const Color(0xFF2A3E0E).withOpacity(0.82),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'GRANIX',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF2A3E0E).withOpacity(0.88),
+                          letterSpacing: 6,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'GRÃOS E TECNOLOGIA',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF2A3E0E).withOpacity(0.60),
+                          letterSpacing: 3.5,
+                        ),
+                      ),
+
+                      const SizedBox(height: 52),
+
+                      // Campo CPF
+                      _LoginField(
+                        label: 'CPF',
+                        controller: _cpfController,
+                        focusNode: _cpfFocus,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.next,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(11),
+                        ],
+                        onSubmitted: (_) =>
+                            FocusScope.of(context).requestFocus(_senhaFocus),
+                        maxLength: 11,
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Campo SENHA
+                      _LoginField(
+                        label: 'SENHA',
+                        controller: _senhaController,
+                        focusNode: _senhaFocus,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _entrar(),
+                        labelFontSize: 16,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Botão ENTRAR branco, texto verde
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _loading ? null : _entrar,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF4A6820),
+                            disabledBackgroundColor:
+                                Colors.white.withOpacity(0.88),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                          ),
+                          child: _loading
+                              ? SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFF4A6820).withOpacity(0.6),
+                                    ),
+                                  ),
+                                )
+                              : const Text(
+                                  'ENTRAR',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF4A6820),
+                                    letterSpacing: 2.0,
+                                  ),
+                                ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 45),
+
+                      // Política de Privacidade
+                      GestureDetector(
+                        onTap: () {},
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'Política de Privacidade',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: const Color.fromARGB(255, 8, 8, 8).withOpacity(0.55),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final List<TextInputFormatter>? inputFormatters;
+  final void Function(String)? onSubmitted;
+  final int? maxLength;
+  final double labelFontSize;
+
+  const _LoginField({
+    required this.label,
+    required this.controller,
+    required this.focusNode,
+    this.obscureText = false,
+    this.keyboardType,
+    this.textInputAction,
+    this.inputFormatters,
+    this.onSubmitted,
+    this.maxLength,
+    this.labelFontSize = 13,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: labelFontSize,
+            fontWeight: FontWeight.w700,
+            color: Colors.white.withOpacity(0.72),
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 1),
+        TextField(
+          controller: controller,
+          focusNode: focusNode,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          inputFormatters: inputFormatters,
+          maxLength: maxLength,
+          onSubmitted: onSubmitted,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            height: 1.2,
+          ),
+          cursorColor: Colors.white,
+          decoration: InputDecoration(
+            isDense: true,
+            filled: false,
+            counterText: '',
+            contentPadding: const EdgeInsets.only(bottom: 8, top: 2),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(
+                  color: Colors.white.withOpacity(0.45), width: 1.1),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white, width: 1.6),
+            ),
+            border: const UnderlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TopIcon extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _TopIcon({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child:
+            Icon(icon, size: 22, color: Colors.white.withOpacity(0.80)),
+      ),
+    );
+  }
+}

@@ -167,7 +167,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2.5,
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                      const Color(0xFF4A6820).withOpacity(0.6),
+                                      Color(0xFF4A6820).withOpacity(0.6),
                                     ),
                                   ),
                                 )
@@ -195,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             'Política de Privacidade',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Color.fromARGB(255, 8, 8, 8).withOpacity(0.55),
+                              color: const Color.fromARGB(255, 8, 8, 8).withOpacity(0.55),
                             ),
                           ),
                         ),

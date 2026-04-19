@@ -1,0 +1,6 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - backup_pre_refatoracao/**
+    - migrados_antigos/**

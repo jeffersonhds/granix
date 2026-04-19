@@ -1,0 +1,6 @@
+lib/features/carga/data/carga_memory_repository.dart
+lib/features/carga/domain/carga_model.dart
+lib/features/carga/pdf/carga_pdf_service.dart
+lib/features/carga/presentation/carga_detalhe_screen.dart
+lib/features/carga/presentation/cargas_screen.dart
+lib/features/carga/presentation/nova_carga_screen.dart

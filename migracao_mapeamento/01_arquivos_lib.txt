@@ -1,0 +1,11 @@
+lib/app/app_routes.dart
+lib/app/app_widget.dart
+lib/core/constants/app_constants.dart
+lib/core/helpers/formatters.dart
+lib/core/routes/route_names.dart
+lib/core/services/database_service.dart
+lib/core/services/local_storage_service.dart
+lib/core/theme/app_colors.dart
+lib/core/theme/app_text_styles.dart
+lib/core/theme/app_theme.dart
+lib/main.dart

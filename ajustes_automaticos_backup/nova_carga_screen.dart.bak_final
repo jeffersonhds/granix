@@ -1,0 +1,1222 @@
+import 'dart:math';
+
+// ignore_for_file: unused_element_parameter
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:granix/core/theme/app_colors.dart';
+import 'package:granix/features/loads/data/carga_memory_repository.dart';
+import 'package:granix/features/loads/domain/carga_model.dart';
+import 'package:granix/features/loads/presentation/pages/cargas_screen.dart';
+
+const _kBg = Colors.white;
+const _kSurface = Colors.white;
+const _kLine = Color(0xFFC0C0C0);
+const _kLabel = Color(0xFF8E8E8E);
+const _kText = Color(0xFF5A5A5A);
+const _kSectionBar = Color(0xFFA9A9A9);
+const _kSectionText = Colors.white;
+const _kAppBar = Color(0xFFB7CA55);
+const _kSaveButton = Color(0xFF95C26C);
+
+class NovaCargaScreen extends StatefulWidget {
+  final CargaModel? cargaParaEditar;
+  final int? indiceEdicao;
+  final CargaModel? cargaParaDuplicar;
+
+  const NovaCargaScreen({
+    super.key,
+    this.cargaParaEditar,
+    this.indiceEdicao,
+    this.cargaParaDuplicar,
+  });
+
+  @override
+  State<NovaCargaScreen> createState() => _NovaCargaScreenState();
+}
+
+class _NovaCargaScreenState extends State<NovaCargaScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final _laudoCtrl = TextEditingController();
+  final _dataCtrl = TextEditingController();
+  final _placaCtrl = TextEditingController();
+  final _pesoBrutoCtrl = TextEditingController();
+  final _pesoTaraCtrl = TextEditingController();
+  final _pesoLiquidoCtrl = TextEditingController();
+  final _ordemCarregamentoCtrl = TextEditingController();
+  final _notaFiscalCtrl = TextEditingController();
+  final _cfopCtrl = TextEditingController();
+  final _dataEmissaoNfCtrl = TextEditingController();
+  final _valorUnitarioCtrl = TextEditingController();
+  final _valorTotalCtrl = TextEditingController();
+  final _chaveNfeCtrl = TextEditingController();
+  final _transportadoraCtrl = TextEditingController();
+  final _aceitoPorCtrl = TextEditingController();
+
+  final _qtdInsetosVivosCtrl = TextEditingController();
+  final _qtdInsetosMortosCtrl = TextEditingController();
+
+  final _umidadeCtrl = TextEditingController();
+  final _materiasImpCtrl = TextEditingController();
+  final _quebradosCtrl = TextEditingController();
+  final _mofadosCtrl = TextEditingController();
+  final _totalAvariadosCtrl = TextEditingController();
+  final _queimadosCtrl = TextEditingController();
+  final _ardidosCtrl = TextEditingController();
+  final _esverdeadosCtrl = TextEditingController();
+  final _fermentadosCtrl = TextEditingController();
+  final _germinadosCtrl = TextEditingController();
+  final _picadosCtrl = TextEditingController();
+  final _observacoesCtrl = TextEditingController();
+
+  String? _veiculoVistoriado = 'SIM';
+  String _produtoBase = 'Soja';
+  String? _tipoProduto = 'OGM - Intacta Declarado';
+
+  String? _insetosVivosSel = '...';
+  String? _insetosMortosSel = '...';
+  String? _odorEstranhoSel = 'Não';
+  String? _sementesToxicasSel = 'Não';
+
+  bool _loading = true;
+
+  bool get _isEdicao =>
+      widget.cargaParaEditar != null && widget.indiceEdicao != null;
+  bool get _isDuplicacao => widget.cargaParaDuplicar != null;
+
+  List<String> get _tiposSoja => const [
+        'OGM - Intacta Declarado',
+        'OGM - Intacta Negativo',
+        'OGM - Intacta Participante',
+        'OGM - Intacta Positivo',
+        'Convencional',
+        'Não Testado',
+        'Aflatoxina negativa',
+        'Aflatoxina < 20 ppb Qualitativo',
+        'Aflatoxina 20 > ppb Qualitativo',
+      ];
+
+  List<String> get _tiposMilho => const [
+        'Milho - OGM',
+        'Milho - Convencional',
+        'Milho - Não Testado',
+      ];
+
+  List<String> get _tiposProduto =>
+      _produtoBase == 'Milho' ? _tiposMilho : _tiposSoja;
+
+  String get _screenTitle {
+    if (_isEdicao) return 'EDITAR CARGA';
+    if (_isDuplicacao) return 'DUPLICAR CARGA';
+    return 'ADICIONAR CARGA';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _pesoBrutoCtrl.addListener(_calcPesoLiquido);
+    _pesoTaraCtrl.addListener(_calcPesoLiquido);
+
+    _quebradosCtrl.addListener(_calcTotalAvariados);
+    _mofadosCtrl.addListener(_calcTotalAvariados);
+    _queimadosCtrl.addListener(_calcTotalAvariados);
+    _ardidosCtrl.addListener(_calcTotalAvariados);
+    _esverdeadosCtrl.addListener(_calcTotalAvariados);
+    _fermentadosCtrl.addListener(_calcTotalAvariados);
+    _germinadosCtrl.addListener(_calcTotalAvariados);
+    _picadosCtrl.addListener(_calcTotalAvariados);
+
+    _inicializarTela();
+  }
+
+  Future<void> _inicializarTela() async {
+    await CargaMemoryRepository.init();
+
+    if (_isEdicao) {
+      _preencher(widget.cargaParaEditar!);
+    } else if (_isDuplicacao) {
+      _preencher(widget.cargaParaDuplicar!);
+      _laudoCtrl.text = _gerarLaudo();
+      _dataCtrl.text = _dataHoje();
+      await _aplicarSequenciaDoDia();
+    } else {
+      _laudoCtrl.text = _gerarLaudo();
+      _dataCtrl.text = _dataHoje();
+      _preencherVazios();
+      await _aplicarSequenciaDoDia();
+    }
+
+    _calcTotalAvariados();
+
+    if (mounted) {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _aplicarSequenciaDoDia() async {
+    final data = _dataCtrl.text.trim();
+    if (data.isEmpty) return;
+
+    final proximo = _proximoNumeroDoDia(data);
+    final seq = proximo.toString().padLeft(2, '0');
+    _ordemCarregamentoCtrl.text = seq;
+    _notaFiscalCtrl.text = seq;
+  }
+
+  int _proximoNumeroDoDia(String data) {
+    final cargas = CargaMemoryRepository.getAll();
+    int maxNumero = 0;
+
+    for (final c in cargas) {
+      if (c.dataClassificacao.trim() != data) continue;
+
+      final ordem =
+          int.tryParse(c.ordemCarregamento.replaceAll(RegExp(r'\D'), '')) ?? 0;
+      final nf = int.tryParse(c.notaFiscal.replaceAll(RegExp(r'\D'), '')) ?? 0;
+
+      if (ordem > maxNumero) maxNumero = ordem;
+      if (nf > maxNumero) maxNumero = nf;
+    }
+
+    return maxNumero + 1;
+  }
+
+  void _preencherVazios() {
+    for (final c in [
+      _umidadeCtrl,
+      _materiasImpCtrl,
+      _quebradosCtrl,
+      _mofadosCtrl,
+      _totalAvariadosCtrl,
+      _queimadosCtrl,
+      _ardidosCtrl,
+      _esverdeadosCtrl,
+      _fermentadosCtrl,
+      _germinadosCtrl,
+      _picadosCtrl,
+      _qtdInsetosVivosCtrl,
+      _qtdInsetosMortosCtrl,
+      _valorUnitarioCtrl,
+      _valorTotalCtrl,
+      _pesoBrutoCtrl,
+      _pesoTaraCtrl,
+      _pesoLiquidoCtrl,
+      _aceitoPorCtrl,
+    ]) {
+      c.text = '';
+    }
+  }
+
+  String _gerarLaudo() {
+    final r = Random.secure();
+    return List.generate(20, (_) => r.nextInt(10)).join();
+  }
+
+  String _dataHoje() {
+    final now = DateTime.now();
+    return '${now.day.toString().padLeft(2, '0')}/'
+        '${now.month.toString().padLeft(2, '0')}/${now.year}';
+  }
+
+  int _digitsToInt(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return 0;
+    return int.tryParse(digits) ?? 0;
+  }
+
+  double _digitsToDecimal(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return 0;
+    return (int.tryParse(digits) ?? 0) / 100;
+  }
+
+  String _formatWeightInt(int value) {
+    final raw = value.toString();
+    final chars = raw.split('').reversed.toList();
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < chars.length; i++) {
+      if (i > 0 && i % 3 == 0) buffer.write('.');
+      buffer.write(chars[i]);
+    }
+
+    return buffer.toString().split('').reversed.join();
+  }
+
+  String _formatDecimalFromDigits(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    final intValue = int.tryParse(digits) ?? 0;
+    final whole = intValue ~/ 100;
+    final decimals = (intValue % 100).toString().padLeft(2, '0');
+    return '$whole.$decimals';
+  }
+
+  String _normalizeDecimalStored(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    return _formatDecimalFromDigits(digits);
+  }
+
+  String _normalizeWeightStored(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    final intValue = int.tryParse(digits) ?? 0;
+    return _formatWeightInt(intValue);
+  }
+
+  void _calcPesoLiquido() {
+    final bruto = _digitsToInt(_pesoBrutoCtrl.text);
+    final tara = _digitsToInt(_pesoTaraCtrl.text);
+    final liquido = bruto - tara;
+    _pesoLiquidoCtrl.text = liquido <= 0 ? '' : _formatWeightInt(liquido);
+  }
+
+  void _calcTotalAvariados() {
+    final total = _produtoBase == 'Milho'
+        ? _digitsToDecimal(_fermentadosCtrl.text) + // ARDIDOS no milho
+            _digitsToDecimal(_ardidosCtrl.text) + // MOFADOS no milho
+            _digitsToDecimal(_esverdeadosCtrl.text) + // FERMENTADOS no milho
+            _digitsToDecimal(_germinadosCtrl.text) +
+            _digitsToDecimal(_picadosCtrl.text) + // IMATUROS no milho
+            _digitsToDecimal(_queimadosCtrl.text) // GESSADOS no milho
+        : _digitsToDecimal(_quebradosCtrl.text) + // DANIFICADOS na soja
+            _digitsToDecimal(_queimadosCtrl.text) +
+            _digitsToDecimal(_ardidosCtrl.text) +
+            _digitsToDecimal(_mofadosCtrl.text) +
+            _digitsToDecimal(_fermentadosCtrl.text) +
+            _digitsToDecimal(_germinadosCtrl.text) +
+            _digitsToDecimal(_picadosCtrl.text); // IMATUROS/CHOCHOS na soja
+
+    if (total == 0) {
+      _totalAvariadosCtrl.text = '';
+      return;
+    }
+
+    final digits = (total * 100).round().toString();
+    _totalAvariadosCtrl.text = _formatDecimalFromDigits(digits);
+  }
+
+  void _preencher(CargaModel c) {
+    _laudoCtrl.text = c.laudo;
+    _dataCtrl.text = c.dataClassificacao;
+    _placaCtrl.text = _PlacaInputFormatter.formatStatic(c.placa);
+    _pesoBrutoCtrl.text = _normalizeWeightStored(c.pesoBruto);
+    _pesoTaraCtrl.text = _normalizeWeightStored(c.pesoTara);
+    _pesoLiquidoCtrl.text = _normalizeWeightStored(c.pesoLiquido);
+    _ordemCarregamentoCtrl.text = c.ordemCarregamento;
+    _notaFiscalCtrl.text = c.notaFiscal;
+    _cfopCtrl.text = c.cfop;
+    _dataEmissaoNfCtrl.text = c.dataEmissaoNf;
+    _valorUnitarioCtrl.text = _normalizeDecimalStored(c.valorUnitario);
+    _valorTotalCtrl.text = _normalizeDecimalStored(c.valorTotal);
+    _chaveNfeCtrl.text = c.chaveNfe;
+    _transportadoraCtrl.text = c.transportadora;
+    _aceitoPorCtrl.text = c.aceitoPor;
+
+    _umidadeCtrl.text = _normalizeDecimalStored(c.umidade);
+    _materiasImpCtrl.text = _normalizeDecimalStored(c.materiasImp);
+    _quebradosCtrl.text = _normalizeDecimalStored(c.quebrados);
+    _mofadosCtrl.text = _normalizeDecimalStored(c.mofados);
+    _totalAvariadosCtrl.text = _normalizeDecimalStored(c.totalAvariados);
+    _queimadosCtrl.text = _normalizeDecimalStored(c.queimados);
+    _ardidosCtrl.text = _normalizeDecimalStored(c.ardidos);
+    _esverdeadosCtrl.text = _normalizeDecimalStored(c.esverdeados);
+    _fermentadosCtrl.text = _normalizeDecimalStored(c.fermentados);
+    _germinadosCtrl.text = _normalizeDecimalStored(c.germinados);
+    _picadosCtrl.text = _normalizeDecimalStored(c.picados);
+    _observacoesCtrl.text = c.observacoes;
+
+    _qtdInsetosVivosCtrl.text = c.qtdInsetosVivos;
+    _qtdInsetosMortosCtrl.text = c.qtdInsetosMortos;
+
+    _insetosVivosSel = c.insetosVivos ? 'Sim' : '...';
+    _insetosMortosSel = c.insetosMortos ? 'Sim' : '...';
+    _odorEstranhoSel = c.odorEstranho ? 'Sim' : 'Não';
+    _sementesToxicasSel = c.sementesToxicas ? 'Sim' : 'Não';
+
+    final tipo = c.tipoProduto;
+    _produtoBase = tipo.toLowerCase().contains('milho') ? 'Milho' : 'Soja';
+    _tipoProduto = _tiposProduto.contains(tipo) ? tipo : _tiposProduto.first;
+    _veiculoVistoriado =
+        c.veiculoVistoriado.isEmpty ? 'SIM' : c.veiculoVistoriado;
+
+    _calcTotalAvariados();
+  }
+
+  @override
+  void dispose() {
+    for (final c in [
+      _laudoCtrl,
+      _dataCtrl,
+      _placaCtrl,
+      _pesoBrutoCtrl,
+      _pesoTaraCtrl,
+      _pesoLiquidoCtrl,
+      _ordemCarregamentoCtrl,
+      _notaFiscalCtrl,
+      _cfopCtrl,
+      _dataEmissaoNfCtrl,
+      _valorUnitarioCtrl,
+      _valorTotalCtrl,
+      _chaveNfeCtrl,
+      _transportadoraCtrl,
+      _aceitoPorCtrl,
+      _qtdInsetosVivosCtrl,
+      _qtdInsetosMortosCtrl,
+      _umidadeCtrl,
+      _materiasImpCtrl,
+      _quebradosCtrl,
+      _mofadosCtrl,
+      _totalAvariadosCtrl,
+      _queimadosCtrl,
+      _ardidosCtrl,
+      _esverdeadosCtrl,
+      _fermentadosCtrl,
+      _germinadosCtrl,
+      _picadosCtrl,
+      _observacoesCtrl,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _salvar() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    final carga = CargaModel(
+      laudo: _laudoCtrl.text.trim(),
+      dataClassificacao: _dataCtrl.text.trim(),
+      placa: _placaCtrl.text.trim(),
+      pesoBruto: _pesoBrutoCtrl.text.trim(),
+      pesoTara: _pesoTaraCtrl.text.trim(),
+      pesoLiquido: _pesoLiquidoCtrl.text.trim(),
+      ordemCarregamento: _ordemCarregamentoCtrl.text.trim(),
+      veiculoVistoriado: _veiculoVistoriado ?? '',
+      tipoProduto: _tipoProduto ?? '',
+      notaFiscal: _notaFiscalCtrl.text.trim(),
+      cfop: _cfopCtrl.text.trim(),
+      dataEmissaoNf: _dataEmissaoNfCtrl.text.trim(),
+      valorUnitario: _valorUnitarioCtrl.text.trim(),
+      valorTotal: _valorTotalCtrl.text.trim(),
+      chaveNfe: _chaveNfeCtrl.text.trim(),
+      transportadora: _transportadoraCtrl.text.trim(),
+      aceitoPor: _aceitoPorCtrl.text.trim(),
+      insetosVivos: _insetosVivosSel == 'Sim',
+      qtdInsetosVivos: _qtdInsetosVivosCtrl.text.trim(),
+      insetosMortos: _insetosMortosSel == 'Sim',
+      qtdInsetosMortos: _qtdInsetosMortosCtrl.text.trim(),
+      odorEstranho: _odorEstranhoSel == 'Sim',
+      sementesToxicas: _sementesToxicasSel == 'Sim',
+      umidade: _umidadeCtrl.text.trim(),
+      materiasImp: _materiasImpCtrl.text.trim(),
+      quebrados: _quebradosCtrl.text.trim(),
+      mofados: _mofadosCtrl.text.trim(),
+      totalAvariados: _totalAvariadosCtrl.text.trim(),
+      queimados: _queimadosCtrl.text.trim(),
+      ardidos: _ardidosCtrl.text.trim(),
+      esverdeados: _esverdeadosCtrl.text.trim(),
+      fermentados: _fermentadosCtrl.text.trim(),
+      germinados: _germinadosCtrl.text.trim(),
+      picados: _picadosCtrl.text.trim(),
+      observacoes: _observacoesCtrl.text.trim(),
+    );
+
+    if (_isEdicao) {
+      await CargaMemoryRepository.removeAt(widget.indiceEdicao!);
+    }
+
+    await CargaMemoryRepository.add(carga);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isEdicao
+              ? 'Carga atualizada.'
+              : _isDuplicacao
+                  ? 'Carga duplicada.'
+                  : 'Carga salva.',
+        ),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const CargasScreen()),
+    );
+  }
+
+  String get _lC1 => _produtoBase == 'Milho' ? 'DANIFICADOS' : 'DANIFICADOS';
+  String get _lC2 => _produtoBase == 'Milho' ? 'QUEBRADOS' : 'MOFADOS';
+  String get _lC3 =>
+      _produtoBase == 'Milho' ? 'AVARIADOS' : 'TOTAL DE AVARIADOS';
+  String get _lC4 => _produtoBase == 'Milho' ? 'GESSADOS' : 'QUEIMADOS';
+  String get _lC5 => _produtoBase == 'Milho' ? 'MOFADOS' : 'ARDIDOS';
+  String get _lC6 => _produtoBase == 'Milho' ? 'FERMENTADOS' : 'ESVERDEADOS';
+  String get _lC7 => _produtoBase == 'Milho' ? 'ARDIDOS' : 'FERMENTADOS';
+  String get _lC8 => 'GERMINADOS';
+  String get _lC9 =>
+      _produtoBase == 'Milho' ? 'IMATUROS' : 'IMATUROS/CHOCHOS';
+
+  @override
+  Widget build(BuildContext context) {
+    final textoBotao = _isEdicao
+        ? 'ATUALIZAR'
+        : _isDuplicacao
+            ? 'SALVAR CÓPIA'
+            : 'SALVAR';
+
+    return Scaffold(
+      backgroundColor: _kBg,
+      appBar: AppBar(
+        backgroundColor: _kAppBar,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          _screenTitle,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: 0.2,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FlatField(
+                      label: 'Laudo',
+                      ctrl: _laudoCtrl,
+                      readOnly: true,
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF7C7C7C),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'Data de Class.',
+                        ctrl: _dataCtrl,
+                        readOnly: true,
+                      ),
+                      _FlatField(
+                        label: 'Placa',
+                        ctrl: _placaCtrl,
+                        required: true,
+                        keyboardType: TextInputType.text,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(8),
+                          _PlacaInputFormatter(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'Peso Bruto',
+                        ctrl: _pesoBrutoCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_WeightInputFormatter()],
+                      ),
+                      _FlatField(
+                        label: 'Peso Tara',
+                        ctrl: _pesoTaraCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_WeightInputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'Peso',
+                        ctrl: _pesoLiquidoCtrl,
+                        readOnly: true,
+                      ),
+                      _FlatField(
+                        label: 'Ordem Carregamento',
+                        ctrl: _ordemCarregamentoCtrl,
+                        readOnly: true,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Veículo Vistoriado?',
+                        value: _veiculoVistoriado,
+                        items: const ['SIM', 'NÃO'],
+                        onChanged: (v) => setState(() => _veiculoVistoriado = v),
+                      ),
+                      _FlatField(
+                        label: 'Nota Fiscal',
+                        ctrl: _notaFiscalCtrl,
+                        readOnly: true,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatDropdownField(
+                      label: 'Produto',
+                      value: _produtoBase,
+                      items: const ['Soja', 'Milho'],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _produtoBase = v;
+                          _tipoProduto = _tiposProduto.first;
+                          _calcTotalAvariados();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatDropdownField(
+                      label: 'Tipo do Produto',
+                      value: _tipoProduto,
+                      items: _tiposProduto,
+                      onChanged: (v) => setState(() => _tipoProduto = v),
+                    ),
+                    const SizedBox(height: 10),
+                    const _SectionBar(title: 'NOTAS'),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatField(
+                        label: 'CFOP',
+                        ctrl: _cfopCtrl,
+                      ),
+                      _FlatField(
+                        label: 'Data de Emissão da N.F.',
+                        ctrl: _dataEmissaoNfCtrl,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: 'Valor Unitário',
+                        ctrl: _valorUnitarioCtrl,
+                        prefixText: 'R\$ ',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: 'Valor Total',
+                        ctrl: _valorTotalCtrl,
+                        prefixText: 'R\$ ',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatBarcodeField(
+                      label: 'Chave NF-e Produtor',
+                      ctrl: _chaveNfeCtrl,
+                    ),
+                    const SizedBox(height: 10),
+                    const _SectionBar(title: 'TRANSPORTE'),
+                    const SizedBox(height: 7),
+                    _FlatField(
+                      label: 'Transportadora',
+                      ctrl: _transportadoraCtrl,
+                    ),
+                    const SizedBox(height: 10),
+                    const _SectionBar(title: 'CLASSIFICAÇÃO'),
+                    const SizedBox(height: 7),
+                    _FlatField(
+                      label: 'Aceito Por: (Somente fora do Padrão)',
+                      ctrl: _aceitoPorCtrl,
+                      readOnly: false,
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Insetos Vivos?',
+                        value: _insetosVivosSel,
+                        items: const ['...', 'Sim', 'Não'],
+                        onChanged: (v) => setState(() => _insetosVivosSel = v),
+                      ),
+                      _FlatField(
+                        label: 'Qtd. Insetos Vivos',
+                        ctrl: _qtdInsetosVivosCtrl,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Insetos Mortos?',
+                        value: _insetosMortosSel,
+                        items: const ['...', 'Sim', 'Não'],
+                        onChanged: (v) => setState(() => _insetosMortosSel = v),
+                      ),
+                      _FlatField(
+                        label: 'Qtd. Insetos Mortos',
+                        ctrl: _qtdInsetosMortosCtrl,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatDropdownField(
+                        label: 'Odor Estranho?',
+                        value: _odorEstranhoSel,
+                        items: const ['Não', 'Sim'],
+                        onChanged: (v) => setState(() => _odorEstranhoSel = v),
+                      ),
+                      _FlatDropdownField(
+                        label: 'Sementes Tóxicas?',
+                        value: _sementesToxicasSel,
+                        items: const ['Não', 'Sim'],
+                        onChanged: (v) =>
+                            setState(() => _sementesToxicasSel = v),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: 'UMIDADE',
+                        ctrl: _umidadeCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: 'MATÉRIAS E. e IMP',
+                        ctrl: _materiasImpCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC1,
+                        ctrl: _quebradosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC2,
+                        ctrl: _mofadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC3,
+                        ctrl: _totalAvariadosCtrl,
+                        readOnly: true,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC4,
+                        ctrl: _queimadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC5,
+                        ctrl: _ardidosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC6,
+                        ctrl: _esverdeadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _row(
+                      _FlatValueField(
+                        label: _lC7,
+                        ctrl: _fermentadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                      _FlatValueField(
+                        label: _lC8,
+                        ctrl: _germinadosCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_Decimal2InputFormatter()],
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatValueField(
+                      label: _lC9,
+                      ctrl: _picadosCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [_Decimal2InputFormatter()],
+                    ),
+                    const SizedBox(height: 7),
+                    _FlatField(
+                      label: 'Observações',
+                      ctrl: _observacoesCtrl,
+                      maxLines: 2,
+                      maxLength: 100,
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: _salvar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kSaveButton,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                        child: Text(
+                          textoBotao,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 2.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _row(Widget left, Widget right) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: 12),
+          Expanded(child: right),
+        ],
+      );
+}
+
+class _SectionBar extends StatelessWidget {
+  final String title;
+
+  const _SectionBar({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 32,
+      alignment: Alignment.center,
+      color: _kSectionBar,
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w400,
+          color: _kSectionText,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _FlatField extends StatelessWidget {
+  final String label;
+  final TextEditingController ctrl;
+  final bool readOnly;
+  final bool required;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final int maxLines;
+  final int? maxLength;
+  final String? hintText;
+  final String? prefixText;
+  final TextStyle? textStyle;
+
+  const _FlatField({
+    required this.label,
+    required this.ctrl,
+    this.readOnly = false,
+    this.required = false,
+    this.keyboardType,
+    this.inputFormatters,
+    this.maxLines = 1,
+    this.maxLength,
+    this.textStyle,
+    this.hintText,
+    this.prefixText,});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: ctrl,
+      readOnly: readOnly,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      validator: required
+          ? (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null
+          : null,
+      style: textStyle ??
+          TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: readOnly ? _kLabel : _kText,
+          ),
+      cursorColor: AppColors.primary,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixText: prefixText,
+        counterText: '',
+        isDense: true,
+        filled: true,
+        fillColor: _kSurface,
+        contentPadding: const EdgeInsets.only(top: 8, bottom: 6),
+        labelStyle: const TextStyle(
+          fontSize: 12.8,
+          fontWeight: FontWeight.w400,
+          color: _kLabel,
+        ),
+        floatingLabelStyle: const TextStyle(
+          fontSize: 12.8,
+          fontWeight: FontWeight.w400,
+          color: _kLabel,
+        ),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: _kLine, width: 1.0),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.primary, width: 1.1),
+        ),
+        errorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.red, width: 1.0),
+        ),
+        focusedErrorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.red, width: 1.1),
+        ),
+      ),
+    );
+  }
+}
+
+class _FlatValueField extends StatelessWidget {
+  final String label;
+  final TextEditingController ctrl;
+  final bool readOnly;
+  final TextInputType? keyboardType;
+  final String? prefixText;
+  final List<TextInputFormatter>? inputFormatters;
+
+  const _FlatValueField({
+    required this.label,
+    required this.ctrl,
+    this.readOnly = false,
+    this.keyboardType,
+    this.prefixText,
+    this.inputFormatters,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: ctrl,
+      readOnly: readOnly,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      style: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w400,
+        color: readOnly ? _kLabel : _kText,
+      ),
+      cursorColor: AppColors.primary,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: '0.00',
+        prefixText: prefixText,
+        isDense: true,
+        filled: true,
+        fillColor: _kSurface,
+        contentPadding: const EdgeInsets.only(top: 8, bottom: 6),
+        labelStyle: const TextStyle(
+          fontSize: 11.8,
+          fontWeight: FontWeight.w400,
+          color: _kLabel,
+        ),
+        floatingLabelStyle: const TextStyle(
+          fontSize: 11.8,
+          fontWeight: FontWeight.w400,
+          color: _kLabel,
+        ),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: _kLine, width: 1.0),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.primary, width: 1.1),
+        ),
+      ),
+    );
+  }
+}
+
+class _FlatDropdownField extends StatelessWidget {
+  final String label;
+  final String? value;
+  final List<String> items;
+  final void Function(String?)? onChanged;
+
+  const _FlatDropdownField({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: _kSurface,
+        contentPadding: EdgeInsets.only(top: 8, bottom: 6),
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _kLine, width: 1.0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12.8,
+              fontWeight: FontWeight.w400,
+              color: _kLabel,
+            ),
+          ),
+          const SizedBox(height: 2),
+          DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            underline: const SizedBox.shrink(),
+            icon: const Icon(Icons.arrow_drop_down, color: _kLabel, size: 22),
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w400,
+              color: _kText,
+            ),
+            items: items
+                .map(
+                  (e) => DropdownMenuItem<String>(
+                    value: e,
+                    child: Text(
+                      e,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w400,
+                        color: _kText,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FlatBarcodeField extends StatelessWidget {
+  final String label;
+  final TextEditingController ctrl;
+
+  const _FlatBarcodeField({
+    required this.label,
+    required this.ctrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        isDense: true,
+        filled: true,
+        fillColor: _kSurface,
+        contentPadding: EdgeInsets.only(top: 8, bottom: 2),
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _kLine, width: 1.0),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              maxLength: 44,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: _kText,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Chave NF-e Produtor',
+                counterText: '',
+                isDense: true,
+                filled: true,
+                fillColor: _kSurface,
+                contentPadding: EdgeInsets.zero,
+                labelStyle: TextStyle(
+                  fontSize: 12.8,
+                  fontWeight: FontWeight.w400,
+                  color: _kLabel,
+                ),
+                floatingLabelStyle: TextStyle(
+                  fontSize: 12.8,
+                  fontWeight: FontWeight.w400,
+                  color: _kLabel,
+                ),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.transparent),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.transparent),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Icon(Icons.reorder, size: 18, color: _kText),
+              Icon(Icons.reorder, size: 18, color: _kText),
+              SizedBox(height: 4),
+              Text(
+                '0/44',
+                style: TextStyle(
+                  fontSize: 10.8,
+                  color: _kText,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeightInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final intValue = int.tryParse(digits) ?? 0;
+    final formatted = _formatWeight(intValue);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  static String _formatWeight(int value) {
+    final raw = value.toString();
+    final chars = raw.split('').reversed.toList();
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < chars.length; i++) {
+      if (i > 0 && i % 3 == 0) buffer.write('.');
+      buffer.write(chars[i]);
+    }
+
+    return buffer.toString().split('').reversed.join();
+  }
+}
+
+class _Decimal2InputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final intValue = int.tryParse(digits) ?? 0;
+    final whole = intValue ~/ 100;
+    final decimals = (intValue % 100).toString().padLeft(2, '0');
+    final formatted = '$whole.$decimals';
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+class _PlacaInputFormatter extends TextInputFormatter {
+  static String formatStatic(String input) {
+    final clean = input.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+    if (clean.isEmpty) return '';
+    if (clean.length <= 3) return clean;
+    return '${clean.substring(0, 3)}-${clean.substring(3)}';
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formatted = formatStatic(newValue.text);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}

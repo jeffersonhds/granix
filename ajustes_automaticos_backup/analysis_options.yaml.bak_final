@@ -1,0 +1,12 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - backup_pre_refatoracao/**
+    - migrados_antigos/**
+
+linter:
+  rules:
+    prefer_const_constructors: false
+    prefer_final_fields: false
+    unused_element: false

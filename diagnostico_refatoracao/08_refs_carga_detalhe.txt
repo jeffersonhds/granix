@@ -1,0 +1,2 @@
+lib/features/loads/presentation/pages/cargas_screen.dart:5:import 'package:granix/features/carga/presentation/carga_detalhe_screen.dart';
+lib/features/carga/presentation/cargas_screen.dart:5:import 'package:granix/features/carga/presentation/carga_detalhe_screen.dart';
